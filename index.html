@@ -1,0 +1,1656 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gyro Wheel Robot Simulator</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d1117;
+      --panel: #151b23;
+      --panel-2: #1f2630;
+      --text: #e6edf3;
+      --muted: #9ba8b7;
+      --accent: #58a6ff;
+      --accent-2: #7ee787;
+      --danger: #ff7b72;
+      --border: #30363d;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.35 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #app {
+      display: grid;
+      grid-template-columns: minmax(320px, 380px) 1fr;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    aside {
+      overflow: auto;
+      padding: 16px;
+      background: linear-gradient(180deg, var(--panel), #10161f);
+      border-right: 1px solid var(--border);
+    }
+
+    main {
+      position: relative;
+      min-width: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    h2 {
+      margin: 20px 0 10px;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+      margin: 12px 0;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .control label,
+    .readout-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .value {
+      color: var(--accent-2);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    button {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      background: var(--panel-2);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .readout {
+      display: grid;
+      gap: 7px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(88, 166, 255, 0.07);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin: 8px 0 12px;
+      padding: 6px 8px;
+      border: 1px solid rgba(255, 123, 114, 0.35);
+      border-radius: 999px;
+      color: var(--danger);
+      background: rgba(255, 123, 114, 0.08);
+      font-size: 12px;
+    }
+
+    .legend {
+      position: absolute;
+      right: 16px;
+      bottom: 16px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(13, 17, 23, 0.78);
+      color: var(--muted);
+      backdrop-filter: blur(8px);
+    }
+
+    .legend strong {
+      color: var(--text);
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 10px 0;
+    }
+
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 9px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .tab.active {
+      border-color: var(--accent);
+      color: var(--text);
+      background: rgba(88, 166, 255, 0.14);
+    }
+
+    .swatch {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--tab-color);
+    }
+
+    .tooltip {
+      position: absolute;
+      display: none;
+      max-width: 320px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(13, 17, 23, 0.92);
+      color: var(--text);
+      pointer-events: none;
+      white-space: pre-line;
+      backdrop-filter: blur(8px);
+      z-index: 2;
+    }
+
+    .scene-toolbar {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      display: flex;
+      gap: 8px;
+      z-index: 2;
+    }
+
+    .scene-toolbar button.active {
+      border-color: var(--accent);
+      background: rgba(88, 166, 255, 0.2);
+    }
+
+    @media (max-width: 900px) {
+      #app {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(320px, 48vh) 1fr;
+      }
+
+      aside {
+        order: 2;
+        border-right: 0;
+        border-top: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <aside>
+      <h1>Gyro Wheel Robot Simulator</h1>
+      <p>Interactive rigid-body approximation for a wheel robot with two steerable reaction flywheels.</p>
+      <div class="badge">Engineering model, not a CAD-grade multibody solver</div>
+
+      <div class="readout" id="readout"></div>
+
+      <div class="buttons">
+        <button id="pauseButton">Pause</button>
+        <button id="resetButton">Reset</button>
+        <button id="exportSettingsButton">Export settings</button>
+        <button id="importSettingsButton">Import settings</button>
+        <button id="exportSessionButton">Export session</button>
+        <button id="importSessionButton">Import session</button>
+      </div>
+      <input id="importSettingsInput" type="file" accept="application/json,.json" hidden />
+      <input id="importSessionInput" type="file" accept="application/json,.json" hidden />
+
+      <h2>Wheel And Body</h2>
+      <div id="bodyControls"></div>
+
+      <h2>Wheel Drive</h2>
+      <div id="driveControls"></div>
+
+      <h2>Linked Gimbal Servo</h2>
+      <div id="gimbalControls"></div>
+
+      <h2>Flywheels</h2>
+      <div id="flywheelControls"></div>
+
+      <h2>Automatic Turn Test</h2>
+      <div class="tabs" id="testTabs"></div>
+      <div id="autoTurnControls"></div>
+      <div class="buttons">
+        <button id="startAutoTurnButton">Start turn test</button>
+        <button id="stopAutoTurnButton">Stop test</button>
+        <button id="exportTurnReportButton">Export turn report</button>
+      </div>
+      <div class="readout" id="autoTurnReadout"></div>
+    </aside>
+
+    <main>
+      <canvas id="view"></canvas>
+      <div class="scene-toolbar">
+        <button id="followWheelButton" type="button">Follow wheel</button>
+      </div>
+      <div class="tooltip" id="trajectoryTooltip"></div>
+      <div class="legend">
+        <div><strong>Blue</strong>: angular momentum vector</div>
+        <div><strong>Green/Orange</strong>: flywheel spin axes</div>
+        <div>Drag to orbit, wheel position follows roll estimate.</div>
+      </div>
+    </main>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const G = 9.80665;
+    const EPS = 1e-9;
+    const RPM_TO_RAD = Math.PI * 2 / 60;
+    const DEG_TO_RAD = Math.PI / 180;
+    const RAD_TO_DEG = 180 / Math.PI;
+
+    const params = {
+      wheelMass: 5.0,
+      wheelRadius: 0.32,
+      shellWidth: 0.32,
+      payloadMass: 3.0,
+      comOffset: 0.035,
+      damping: 0.18,
+      simSpeed: 1.0,
+      wheelTorque: 0,
+      rollingResistance: 0.08,
+      yawDamping: 0.2,
+      flywheelMass: 0.8,
+      flywheelRadius: 0.07,
+      flywheelRpm: 7000,
+      flywheelSpinAccel: 0,
+      gimbalDeg: 0,
+      autoTurnTargetDeg: 90,
+      autoTurnKp: 0.55,
+      autoTurnKi: 0.02,
+      autoTurnKd: 0.12,
+      autoTurnMaxServoDeg: 35,
+      autoTurnMaxServoRateDeg: 120,
+      autoTurnDriveTorque: 1.8,
+      autoTurnToleranceDeg: 2,
+      autoTurnFlywheelRampRpmPerSec: 6000,
+    };
+
+    const controlsSpec = [
+      ["wheelMass", "Wheel mass", "kg", 0.5, 20, 0.1],
+      ["wheelRadius", "Wheel radius", "m", 0.12, 0.8, 0.01],
+      ["shellWidth", "Side cut width", "m", 0.08, 0.7, 0.005],
+      ["payloadMass", "Internal payload mass", "kg", 0.2, 20, 0.1],
+      ["comOffset", "Center of mass below axle", "m", -0.12, 0.12, 0.005],
+      ["damping", "Body damping", "N m s/rad", 0, 2, 0.01],
+      ["simSpeed", "Simulation speed", "x", 0.1, 4, 0.1],
+    ];
+
+    const driveSpec = [
+      ["wheelTorque", "Wheel motor torque", "N m", -8, 8, 0.1],
+      ["rollingResistance", "Rolling resistance", "N m s/rad", 0, 2, 0.01],
+      ["yawDamping", "Ground yaw damping", "N m s/rad", 0, 2, 0.01],
+    ];
+
+    const flywheelSpec = [
+      ["mass", "Mass", "kg", 0.05, 5, 0.05],
+      ["radius", "Radius", "m", 0.02, 0.18, 0.005],
+      ["rpm", "Spin speed", "rpm", -20000, 20000, 100],
+      ["spinAccel", "Spin acceleration", "rpm/s", -10000, 10000, 100],
+    ];
+
+    const gimbalSpec = [
+      ["gimbalDeg", "Servo angle", "deg", -90, 90, 1],
+    ];
+
+    const autoTurnSpec = [
+      ["autoTurnTargetDeg", "Target turn", "deg", -180, 180, 1],
+      ["autoTurnKp", "PID Kp", "", 0, 5, 0.01],
+      ["autoTurnKi", "PID Ki", "", 0, 2, 0.01],
+      ["autoTurnKd", "PID Kd", "", 0, 2, 0.01],
+      ["autoTurnMaxServoDeg", "Max servo angle", "deg", 1, 90, 1],
+      ["autoTurnMaxServoRateDeg", "Max servo rate", "deg/s", 5, 360, 1],
+      ["autoTurnDriveTorque", "Test drive torque", "N m", 0, 8, 0.1],
+      ["autoTurnToleranceDeg", "Finish tolerance", "deg", 0.5, 10, 0.5],
+      ["autoTurnFlywheelRampRpmPerSec", "Flywheel stop/start rate", "rpm/s", 500, 30000, 100],
+    ];
+
+    const state = {
+      time: 0,
+      paused: false,
+      position: new THREE.Vector3(0, 0, 0),
+      q: new THREE.Quaternion(),
+      omega: new THREE.Vector3(0, 0, 0.1),
+      wheelOmega: 0,
+      wheelSpin: 0,
+      spinPhaseA: 0,
+      spinPhaseB: 0,
+      previousGimbalDeg: 0,
+      actualGimbalRateDeg: 0,
+      lastTrajectoryPoint: new THREE.Vector3(),
+      lastForward: new THREE.Vector3(1, 0, 0),
+      autoTurn: {
+        active: false,
+        phase: "idle",
+        startTime: 0,
+        startHeadingDeg: 0,
+        integral: 0,
+        previousErrorDeg: 0,
+        previousWheelTorque: 0,
+        previousFlywheelRpm: 0,
+        maxAbsServoDeg: 0,
+        maxAbsServoRateDeg: 0,
+        samples: [],
+        result: null,
+        currentRunId: null,
+      },
+    };
+
+    const canvas = document.getElementById("view");
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x0d1117, 1);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 100);
+    camera.position.set(1.2, 0.8, 1.2);
+
+    const orbit = new OrbitControls(camera, renderer.domElement);
+    orbit.target.set(0, 0.25, 0);
+    orbit.enableDamping = true;
+    const cameraFollowTarget = orbit.target.clone();
+    let followWheel = false;
+
+    scene.add(new THREE.HemisphereLight(0xddeeff, 0x263040, 2.2));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    keyLight.position.set(2, 3, 2);
+    scene.add(keyLight);
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(2000, 2000),
+      new THREE.MeshStandardMaterial({
+        color: 0x0b1220,
+        roughness: 0.85,
+        metalness: 0.05,
+        polygonOffset: true,
+        polygonOffsetFactor: 2,
+        polygonOffsetUnits: 2,
+      }),
+    );
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -0.01;
+    scene.add(ground);
+
+    const grid = new THREE.GridHelper(2000, 400, 0x30363d, 0x20262f);
+    grid.position.y = 0.002;
+    scene.add(grid);
+
+    const TEST_COLORS = [0x58a6ff, 0x7ee787, 0xffa657, 0xd2a8ff, 0xff7b72, 0x79c0ff, 0xf2cc60];
+    const trajectoryRuns = [];
+    let testCounter = 0;
+    let activeRun = createTrajectoryRun({
+      id: "manual",
+      name: "Manual",
+      color: 0x58a6ff,
+      settings: null,
+      isTest: false,
+    });
+    trajectoryRuns.push(activeRun);
+
+    const pointer = new THREE.Vector2();
+    const raycaster = new THREE.Raycaster();
+    raycaster.params.Line.threshold = 0.06;
+    const trajectoryTooltip = document.getElementById("trajectoryTooltip");
+    canvas.addEventListener("pointermove", handleTrajectoryHover);
+    canvas.addEventListener("pointerleave", hideTrajectoryTooltip);
+
+    const robot = new THREE.Group();
+    scene.add(robot);
+
+    const materials = {
+      wheel: new THREE.MeshStandardMaterial({ color: 0x8b949e, metalness: 0.55, roughness: 0.32, side: THREE.DoubleSide }),
+      shell: new THREE.MeshStandardMaterial({ color: 0x58a6ff, transparent: true, opacity: 0.16, roughness: 0.18 }),
+      flyA: new THREE.MeshStandardMaterial({ color: 0x7ee787, metalness: 0.35, roughness: 0.28 }),
+      flyB: new THREE.MeshStandardMaterial({ color: 0xffa657, metalness: 0.35, roughness: 0.28 }),
+      axle: new THREE.MeshStandardMaterial({ color: 0xc9d1d9, metalness: 0.6, roughness: 0.25 }),
+    };
+
+    let wheelMesh;
+    let wheelMarkerMesh;
+    let shellMesh;
+    let axleMesh;
+    let gimbalShaftMesh;
+    let flyAGroup;
+    let flyBGroup;
+    let flyAMesh;
+    let flyBMesh;
+    let momentumArrow;
+    let axisArrowA;
+    let axisArrowB;
+
+    function makeCylinderAlongZ(radius, depth, material) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, depth, 48), material);
+      mesh.rotation.x = Math.PI / 2;
+      return mesh;
+    }
+
+    function makeCylinderAlongX(radius, depth, material) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, depth, 48), material);
+      mesh.rotation.z = Math.PI / 2;
+      return mesh;
+    }
+
+    function getFlywheelThickness() {
+      return Math.max(0.025, params.flywheelRadius * 0.65);
+    }
+
+    function makeSlicedSphereGeometry(radius, width, radialSegments = 96, depthSegments = 18) {
+      const halfWidth = Math.min(radius * 0.92, Math.max(width * 0.5, radius * 0.08));
+      const vertices = [];
+      const normals = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let iz = 0; iz <= depthSegments; iz += 1) {
+        const z = -halfWidth + (2 * halfWidth * iz) / depthSegments;
+        const ringRadius = Math.sqrt(Math.max(radius * radius - z * z, EPS));
+
+        for (let i = 0; i <= radialSegments; i += 1) {
+          const a = (i / radialSegments) * Math.PI * 2;
+          const x = Math.cos(a) * ringRadius;
+          const y = Math.sin(a) * ringRadius;
+          vertices.push(x, y, z);
+          normals.push(x / radius, y / radius, z / radius);
+          uvs.push(i / radialSegments, iz / depthSegments);
+        }
+      }
+
+      for (let iz = 0; iz < depthSegments; iz += 1) {
+        for (let i = 0; i < radialSegments; i += 1) {
+          const row = radialSegments + 1;
+          const a = iz * row + i;
+          const b = a + 1;
+          const c = a + row;
+          const d = c + 1;
+          indices.push(a, c, b, b, c, d);
+        }
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setIndex(indices);
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+      geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
+      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
+      geometry.computeBoundingSphere();
+      return geometry;
+    }
+
+    function rebuildGeometry() {
+      robot.clear();
+
+      const wheelR = params.wheelRadius;
+      const width = params.shellWidth;
+      const flywheelThickness = getFlywheelThickness();
+      const halfWidth = Math.min(wheelR * 0.92, Math.max(width * 0.5, wheelR * 0.08));
+      const cutRingRadius = Math.sqrt(Math.max(wheelR * wheelR - halfWidth * halfWidth, EPS));
+      wheelMesh = new THREE.Group();
+      const wheelShell = new THREE.Mesh(
+        makeSlicedSphereGeometry(wheelR, width),
+        materials.wheel,
+      );
+      const leftCutRing = new THREE.Mesh(
+        new THREE.TorusGeometry(cutRingRadius, wheelR * 0.012, 10, 96),
+        materials.axle,
+      );
+      const rightCutRing = leftCutRing.clone();
+      leftCutRing.position.z = -halfWidth;
+      rightCutRing.position.z = halfWidth;
+      wheelMesh.add(wheelShell, leftCutRing, rightCutRing);
+      wheelMarkerMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(wheelR * 0.035, 16, 8),
+        materials.flyA,
+      );
+      wheelMarkerMesh.position.set(wheelR, 0, 0);
+      wheelMesh.add(wheelMarkerMesh);
+      robot.add(wheelMesh);
+
+      shellMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(wheelR * 0.82, 32, 16),
+        materials.shell,
+      );
+      shellMesh.scale.z = 0.42;
+      robot.add(shellMesh);
+
+      axleMesh = makeCylinderAlongZ(wheelR * 0.045, wheelR * 0.85, materials.axle);
+      robot.add(axleMesh);
+
+      gimbalShaftMesh = makeCylinderAlongX(wheelR * 0.03, wheelR * 0.7, materials.axle);
+      robot.add(gimbalShaftMesh);
+
+      flyAGroup = new THREE.Group();
+      flyBGroup = new THREE.Group();
+      flyAGroup.position.set(wheelR * 0.26, 0, 0);
+      flyBGroup.position.set(-wheelR * 0.26, 0, 0);
+
+      flyAMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(params.flywheelRadius, params.flywheelRadius, flywheelThickness, 64),
+        materials.flyA,
+      );
+      flyBMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(params.flywheelRadius, params.flywheelRadius, flywheelThickness, 64),
+        materials.flyB,
+      );
+
+      flyAGroup.add(flyAMesh);
+      flyBGroup.add(flyBMesh);
+      robot.add(flyAGroup, flyBGroup);
+
+      momentumArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.25, 0x58a6ff);
+      axisArrowA = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.2, 0x7ee787);
+      axisArrowB = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.2, 0xffa657);
+      robot.add(momentumArrow, axisArrowA, axisArrowB);
+    }
+
+    function addRange(container, key, label, unit, min, max, step, onInput) {
+      const wrapper = document.createElement("div");
+      wrapper.className = "control";
+      const caption = document.createElement("label");
+      const name = document.createElement("span");
+      const value = document.createElement("span");
+      const input = document.createElement("input");
+
+      name.textContent = label;
+      value.className = "value";
+      input.type = "range";
+      input.min = min;
+      input.max = max;
+      input.step = step;
+      input.value = params[key];
+      input.dataset.key = key;
+      input.dataset.unit = unit;
+
+      const refresh = () => {
+        params[key] = Number(input.value);
+        value.textContent = `${formatNumber(params[key])} ${unit}`;
+        onInput?.();
+      };
+
+      input.addEventListener("input", refresh);
+      caption.append(name, value);
+      wrapper.append(caption, input);
+      container.append(wrapper);
+      refresh();
+    }
+
+    function buildControls() {
+      const bodyControls = document.getElementById("bodyControls");
+      const driveControls = document.getElementById("driveControls");
+      const gimbalControls = document.getElementById("gimbalControls");
+      const flywheelControls = document.getElementById("flywheelControls");
+      const autoTurnControls = document.getElementById("autoTurnControls");
+
+      controlsSpec.forEach((spec) => addRange(bodyControls, ...spec, rebuildGeometry));
+      driveSpec.forEach((spec) => addRange(driveControls, ...spec));
+      gimbalSpec.forEach((spec) => addRange(gimbalControls, ...spec));
+      flywheelSpec.forEach(([suffix, ...spec]) => {
+        addRange(flywheelControls, `flywheel${capitalize(suffix)}`, ...spec, suffix === "radius" ? rebuildGeometry : undefined);
+      });
+      autoTurnSpec.forEach((spec) => addRange(autoTurnControls, ...spec));
+
+      document.getElementById("pauseButton").addEventListener("click", () => {
+        state.paused = !state.paused;
+        document.getElementById("pauseButton").textContent = state.paused ? "Resume" : "Pause";
+      });
+
+      document.getElementById("resetButton").addEventListener("click", resetState);
+      document.getElementById("exportSettingsButton").addEventListener("click", exportSettings);
+      document.getElementById("importSettingsButton").addEventListener("click", () => {
+        document.getElementById("importSettingsInput").click();
+      });
+      document.getElementById("importSettingsInput").addEventListener("change", importSettings);
+      document.getElementById("exportSessionButton").addEventListener("click", exportSession);
+      document.getElementById("importSessionButton").addEventListener("click", () => {
+        document.getElementById("importSessionInput").click();
+      });
+      document.getElementById("importSessionInput").addEventListener("change", importSession);
+      document.getElementById("startAutoTurnButton").addEventListener("click", startAutoTurnTest);
+      document.getElementById("stopAutoTurnButton").addEventListener("click", stopAutoTurnTest);
+      document.getElementById("exportTurnReportButton").addEventListener("click", exportTurnReport);
+      document.getElementById("followWheelButton").addEventListener("click", toggleFollowWheel);
+    }
+
+    function toggleFollowWheel() {
+      followWheel = !followWheel;
+      const button = document.getElementById("followWheelButton");
+      button.classList.toggle("active", followWheel);
+      button.textContent = followWheel ? "Following wheel" : "Follow wheel";
+
+      if (followWheel) {
+        cameraFollowTarget.copy(orbit.target);
+        updateCameraFollow(1);
+      }
+    }
+
+    function exportSettings() {
+      const preset = {
+        type: "gyro-wheel-robot-settings",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        params: { ...params },
+      };
+      const blob = new Blob([JSON.stringify(preset, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      link.href = url;
+      link.download = `gyro-wheel-settings-${stamp}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function importSettings(event) {
+      const [file] = event.target.files;
+      event.target.value = "";
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        const loadedParams = parsed.params && typeof parsed.params === "object" ? parsed.params : parsed;
+        applySettings(loadedParams);
+      } catch (error) {
+        window.alert(`Could not import settings: ${error.message}`);
+      }
+    }
+
+    function applySettings(loadedParams) {
+      Object.keys(params).forEach((key) => {
+        const value = loadedParams[key];
+        if (Number.isFinite(value)) params[key] = value;
+      });
+
+      rebuildGeometry();
+      syncDynamicInputs();
+      resetState(false);
+    }
+
+    function exportSession() {
+      const session = {
+        type: "gyro-wheel-robot-session",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        params: { ...params },
+        testCounter,
+        activeRunId: activeRun?.id ?? null,
+        runs: trajectoryRuns
+          .filter((run) => run.isTest)
+          .map(serializeRun),
+      };
+      const blob = new Blob([JSON.stringify(session, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      link.href = url;
+      link.download = `gyro-wheel-session-${stamp}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function importSession(event) {
+      const [file] = event.target.files;
+      event.target.value = "";
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const session = JSON.parse(text);
+        if (!Array.isArray(session.runs)) throw new Error("Session file does not contain test runs.");
+        loadSession(session);
+      } catch (error) {
+        window.alert(`Could not import session: ${error.message}`);
+      }
+    }
+
+    function loadSession(session) {
+      clearTestRuns();
+      Object.keys(params).forEach((key) => {
+        const value = session.params?.[key];
+        if (Number.isFinite(value)) params[key] = value;
+      });
+
+      testCounter = Number.isFinite(session.testCounter) ? session.testCounter : 0;
+      session.runs.forEach((savedRun) => restoreRun(savedRun));
+      activeRun = trajectoryRuns.find((run) => run.id === session.activeRunId)
+        ?? trajectoryRuns.find((run) => run.isTest)
+        ?? trajectoryRuns[0];
+      if (activeRun?.isTest) {
+        Object.keys(params).forEach((key) => {
+          const value = activeRun.settings?.[key];
+          if (Number.isFinite(value)) params[key] = value;
+        });
+        state.autoTurn.currentRunId = activeRun.id;
+        state.autoTurn.samples = activeRun.samples;
+        state.autoTurn.result = activeRun.result;
+      }
+
+      rebuildGeometry();
+      syncDynamicInputs();
+      resetState(false);
+      renderTestTabs();
+      updateAutoTurnReadout();
+    }
+
+    function serializeRun(run) {
+      return {
+        id: run.id,
+        name: run.name,
+        color: run.color,
+        settings: run.settings,
+        samples: run.samples,
+        result: run.result,
+        distanceM: run.distanceM,
+        points: run.points.map((point) => [round(point.x, 4), round(point.y, 4), round(point.z, 4)]),
+      };
+    }
+
+    function restoreRun(savedRun) {
+      const run = createTrajectoryRun({
+        id: String(savedRun.id),
+        name: String(savedRun.name),
+        color: Number.isFinite(savedRun.color) ? savedRun.color : TEST_COLORS[0],
+        settings: savedRun.settings ?? {},
+        isTest: true,
+      });
+      run.samples = Array.isArray(savedRun.samples) ? savedRun.samples : [];
+      run.result = savedRun.result ?? null;
+      run.points.push(...(Array.isArray(savedRun.points) ? savedRun.points : [])
+        .map(([x, y, z]) => new THREE.Vector3(Number(x), Number(y), Number(z)))
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && Number.isFinite(point.z)));
+      run.distanceM = Number.isFinite(savedRun.distanceM) ? savedRun.distanceM : computeRunDistance(run.points);
+      run.nextLabelDistanceM = Math.floor(run.distanceM) + 1;
+      run.geometry.setFromPoints(run.points);
+      run.geometry.computeBoundingSphere();
+      rebuildDistanceLabels(run);
+      trajectoryRuns.push(run);
+    }
+
+    function clearTestRuns() {
+      trajectoryRuns
+        .filter((run) => run.isTest)
+        .forEach(removeRunFromScene);
+      for (let i = trajectoryRuns.length - 1; i >= 0; i -= 1) {
+        if (trajectoryRuns[i].isTest) trajectoryRuns.splice(i, 1);
+      }
+      activeRun = trajectoryRuns[0];
+      state.autoTurn.currentRunId = null;
+      state.autoTurn.samples = [];
+      state.autoTurn.result = null;
+    }
+
+    function removeRunFromScene(run) {
+      scene.remove(run.line);
+      run.geometry.dispose();
+      run.line.material.dispose();
+      run.labels.forEach((label) => {
+        scene.remove(label);
+        label.material.map?.dispose();
+        label.material.dispose();
+      });
+    }
+
+    function createTrajectoryRun({ id, name, color, settings, isTest }) {
+      const points = [];
+      const geometry = new THREE.BufferGeometry();
+      const line = new THREE.Line(
+        geometry,
+        new THREE.LineBasicMaterial({ color, depthTest: false, depthWrite: false }),
+      );
+      line.renderOrder = 10;
+      line.frustumCulled = false;
+
+      const run = {
+        id,
+        name,
+        color,
+        settings,
+        isTest,
+        points,
+        geometry,
+        line,
+        samples: [],
+        result: null,
+        distanceM: 0,
+        nextLabelDistanceM: 1,
+        labels: [],
+      };
+      line.userData.run = run;
+      scene.add(line);
+      return run;
+    }
+
+    function createAutoTurnRun() {
+      testCounter += 1;
+      const color = TEST_COLORS[(testCounter - 1) % TEST_COLORS.length];
+      const run = createTrajectoryRun({
+        id: `test-${testCounter}`,
+        name: `Test ${testCounter}`,
+        color,
+        settings: { ...params },
+        isTest: true,
+      });
+      trajectoryRuns.push(run);
+      activeRun = run;
+      state.autoTurn.currentRunId = run.id;
+      renderTestTabs();
+      return run;
+    }
+
+    function getActiveTestRun() {
+      return trajectoryRuns.find((run) => run.id === state.autoTurn.currentRunId) ?? null;
+    }
+
+    function getCurrentTrajectoryRun() {
+      return state.autoTurn.active ? getActiveTestRun() : activeRun;
+    }
+
+    function selectRun(runId) {
+      const run = trajectoryRuns.find((item) => item.id === runId);
+      if (!run) return;
+
+      activeRun = run;
+      state.autoTurn.currentRunId = run.isTest ? run.id : state.autoTurn.currentRunId;
+      if (run.isTest) {
+        Object.keys(params).forEach((key) => {
+          const value = run.settings?.[key];
+          if (Number.isFinite(value)) params[key] = value;
+        });
+        rebuildGeometry();
+        syncDynamicInputs();
+        state.autoTurn.samples = run.samples;
+        state.autoTurn.result = run.result;
+      }
+      renderTestTabs();
+      updateAutoTurnReadout();
+    }
+
+    function renderTestTabs() {
+      const tabs = document.getElementById("testTabs");
+      if (!tabs) return;
+
+      const testRuns = trajectoryRuns.filter((run) => run.isTest);
+      tabs.innerHTML = testRuns.length === 0
+        ? `<span class="tab">No tests yet</span>`
+        : "";
+
+      testRuns.forEach((run) => {
+        const button = document.createElement("button");
+        button.className = `tab${activeRun?.id === run.id ? " active" : ""}`;
+        button.type = "button";
+        button.style.setProperty("--tab-color", `#${run.color.toString(16).padStart(6, "0")}`);
+        button.innerHTML = `<span class="swatch"></span>${run.name}`;
+        button.addEventListener("click", () => selectRun(run.id));
+        tabs.append(button);
+      });
+    }
+
+    function startAutoTurnTest() {
+      resetState();
+      const run = createAutoTurnRun();
+      resetTrajectory();
+      const auto = state.autoTurn;
+      auto.active = true;
+      auto.phase = "turning";
+      auto.startTime = state.time;
+      auto.startHeadingDeg = getGroundHeading() * RAD_TO_DEG;
+      auto.integral = 0;
+      auto.previousErrorDeg = params.autoTurnTargetDeg;
+      auto.previousWheelTorque = params.wheelTorque;
+      auto.previousFlywheelRpm = params.flywheelRpm;
+      auto.maxAbsServoDeg = 0;
+      auto.maxAbsServoRateDeg = 0;
+      auto.samples = run.samples;
+      auto.result = null;
+      run.result = null;
+      params.gimbalDeg = 0;
+      params.wheelTorque = Math.sign(params.autoTurnDriveTorque || 1) * Math.abs(params.autoTurnDriveTorque);
+      syncDynamicInputs();
+      updateAutoTurnReadout();
+    }
+
+    function stopAutoTurnTest() {
+      const auto = state.autoTurn;
+      if (!auto.active) return;
+
+      params.wheelTorque = auto.previousWheelTorque;
+      auto.active = false;
+      auto.phase = "stopped";
+      params.gimbalDeg = 0;
+      syncDynamicInputs();
+      finishAutoTurn("stopped");
+    }
+
+    function updateAutoTurnController(dt) {
+      const auto = state.autoTurn;
+      if (!auto.active) return;
+
+      const elapsed = state.time - auto.startTime;
+      const currentTurnDeg = normalizeAngleDeg(getGroundHeading() * RAD_TO_DEG - auto.startHeadingDeg);
+      const errorDeg = normalizeAngleDeg(params.autoTurnTargetDeg - currentTurnDeg);
+      const absError = Math.abs(errorDeg);
+
+      if (auto.phase === "turning") {
+        auto.integral = clamp(auto.integral + errorDeg * dt, -300, 300);
+        const derivative = (errorDeg - auto.previousErrorDeg) / Math.max(dt, EPS);
+        const commandRateDeg = -(params.autoTurnKp * errorDeg
+          + params.autoTurnKi * auto.integral
+          + params.autoTurnKd * derivative) * params.autoTurnMaxServoRateDeg;
+        setServoRate(commandRateDeg, dt);
+
+        const crossedTarget = Math.sign(errorDeg) !== Math.sign(auto.previousErrorDeg) && Math.abs(auto.previousErrorDeg) > params.autoTurnToleranceDeg;
+        const servoAtLimit = Math.abs(params.gimbalDeg) >= params.autoTurnMaxServoDeg * 0.98;
+        auto.previousErrorDeg = errorDeg;
+
+        if (absError <= params.autoTurnToleranceDeg || crossedTarget || servoAtLimit) {
+          auto.phase = "stoppingFlywheels";
+          auto.integral = 0;
+        }
+      } else if (auto.phase === "stoppingFlywheels") {
+        params.flywheelRpm = approachValue(params.flywheelRpm, 0, params.autoTurnFlywheelRampRpmPerSec * dt);
+        setServoRate(0, dt);
+        if (Math.abs(params.flywheelRpm) < 5) {
+          params.flywheelRpm = 0;
+          auto.phase = "zeroing";
+        }
+      } else if (auto.phase === "zeroing") {
+        setServoRate(-params.gimbalDeg * 8, dt);
+        auto.previousErrorDeg = errorDeg;
+
+        const servoIsHome = Math.abs(params.gimbalDeg) < 0.5 && Math.abs(state.actualGimbalRateDeg) < 2;
+        if (servoIsHome) {
+          params.gimbalDeg = 0;
+          auto.phase = "spinningUp";
+        }
+      } else if (auto.phase === "spinningUp") {
+        params.flywheelRpm = approachValue(
+          params.flywheelRpm,
+          auto.previousFlywheelRpm,
+          params.autoTurnFlywheelRampRpmPerSec * dt,
+        );
+        setServoRate(0, dt);
+        if (Math.abs(params.flywheelRpm - auto.previousFlywheelRpm) < 5) {
+          params.flywheelRpm = auto.previousFlywheelRpm;
+          params.wheelTorque = auto.previousWheelTorque;
+          auto.active = false;
+          auto.phase = "finished";
+          syncDynamicInputs();
+          finishAutoTurn("finished");
+        }
+      }
+
+      auto.maxAbsServoDeg = Math.max(auto.maxAbsServoDeg, Math.abs(params.gimbalDeg));
+      auto.maxAbsServoRateDeg = Math.max(auto.maxAbsServoRateDeg, Math.abs(state.actualGimbalRateDeg));
+      logAutoTurnSample(elapsed, currentTurnDeg, errorDeg);
+      updateAutoTurnReadout(currentTurnDeg, errorDeg);
+    }
+
+    function setServoRate(rateDegPerSec, dt) {
+      const limitedRate = clamp(rateDegPerSec, -params.autoTurnMaxServoRateDeg, params.autoTurnMaxServoRateDeg);
+      const delta = limitedRate * dt;
+      params.gimbalDeg = clamp(params.gimbalDeg + delta, -params.autoTurnMaxServoDeg, params.autoTurnMaxServoDeg);
+      state.actualGimbalRateDeg = delta / Math.max(dt, EPS);
+    }
+
+    function logAutoTurnSample(elapsed, currentTurnDeg, errorDeg) {
+      const auto = state.autoTurn;
+      if (auto.samples.length > 0) {
+        const last = auto.samples[auto.samples.length - 1];
+        if (elapsed - last.time < 0.05) return;
+      }
+
+      auto.samples.push({
+        time: round(elapsed, 3),
+        turnDeg: round(currentTurnDeg, 3),
+        errorDeg: round(errorDeg, 3),
+        servoDeg: round(params.gimbalDeg, 3),
+        servoRateDegPerSec: round(state.actualGimbalRateDeg, 3),
+        flywheelRpm: round(params.flywheelRpm, 1),
+        wheelSpeedRadPerSec: round(state.wheelOmega, 3),
+        groundSpeedMPerSec: round(state.wheelOmega * params.wheelRadius, 3),
+        x: round(state.position.x, 3),
+        z: round(state.position.z, 3),
+      });
+    }
+
+    function finishAutoTurn(status) {
+      const auto = state.autoTurn;
+      const run = getActiveTestRun();
+      const finalTurnDeg = normalizeAngleDeg(getGroundHeading() * RAD_TO_DEG - auto.startHeadingDeg);
+      const finalErrorDeg = normalizeAngleDeg(params.autoTurnTargetDeg - finalTurnDeg);
+      auto.result = {
+        status,
+        targetTurnDeg: round(params.autoTurnTargetDeg, 3),
+        finalTurnDeg: round(finalTurnDeg, 3),
+        finalErrorDeg: round(finalErrorDeg, 3),
+        durationSec: round(state.time - auto.startTime, 3),
+        maxAbsServoDeg: round(auto.maxAbsServoDeg, 3),
+        maxAbsServoRateDegPerSec: round(auto.maxAbsServoRateDeg, 3),
+        distanceM: round(run?.distanceM ?? Math.hypot(state.position.x, state.position.z), 3),
+        finalPosition: {
+          x: round(state.position.x, 3),
+          z: round(state.position.z, 3),
+        },
+      };
+      if (run) {
+        run.result = auto.result;
+        run.settings = { ...params };
+      }
+      renderTestTabs();
+      updateAutoTurnReadout(finalTurnDeg, finalErrorDeg);
+    }
+
+    function exportTurnReport() {
+      const selectedRun = activeRun?.isTest ? activeRun : getActiveTestRun();
+      if (!selectedRun || (!selectedRun.result && selectedRun.samples.length === 0)) {
+        window.alert("No automatic turn test result to export yet.");
+        return;
+      }
+
+      const report = {
+        type: "gyro-wheel-turn-report",
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        testName: selectedRun.name,
+        color: `#${selectedRun.color.toString(16).padStart(6, "0")}`,
+        settings: selectedRun.settings,
+        result: selectedRun.result,
+        samples: selectedRun.samples,
+      };
+      const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      link.href = url;
+      link.download = `gyro-wheel-${selectedRun.id}-report-${stamp}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function updateAutoTurnReadout(currentTurnDeg = 0, errorDeg = params.autoTurnTargetDeg) {
+      const readout = document.getElementById("autoTurnReadout");
+      if (!readout) return;
+
+      const selectedRun = activeRun?.isTest ? activeRun : getActiveTestRun();
+      const result = selectedRun?.result ?? state.autoTurn.result;
+      const samplesLength = selectedRun?.samples.length ?? state.autoTurn.samples.length;
+      readout.innerHTML = `
+        <div class="readout-row"><span>Status</span><span class="value">${state.autoTurn.phase}</span></div>
+        <div class="readout-row"><span>Selected test</span><span class="value">${selectedRun?.name ?? "none"}</span></div>
+        <div class="readout-row"><span>Current turn</span><span class="value">${formatNumber(currentTurnDeg)} deg</span></div>
+        <div class="readout-row"><span>Turn error</span><span class="value">${formatNumber(errorDeg)} deg</span></div>
+        <div class="readout-row"><span>Samples</span><span class="value">${samplesLength}</span></div>
+        <div class="readout-row"><span>Last result</span><span class="value">${result ? `${formatNumber(result.finalTurnDeg)} deg / error ${formatNumber(result.finalErrorDeg)} deg` : "none"}</span></div>
+      `;
+    }
+
+    function resetState(clearTrajectory = true) {
+      if (state.autoTurn.active) {
+        params.wheelTorque = state.autoTurn.previousWheelTorque;
+        syncDynamicInputs();
+      }
+      state.time = 0;
+      state.position.set(0, params.wheelRadius, 0);
+      state.q.identity();
+      state.omega.set(0, 0, 0);
+      state.wheelOmega = 0;
+      state.wheelSpin = 0;
+      state.spinPhaseA = 0;
+      state.spinPhaseB = 0;
+      state.previousGimbalDeg = params.gimbalDeg;
+      state.actualGimbalRateDeg = 0;
+      state.lastForward.set(1, 0, 0);
+      state.autoTurn.active = false;
+      state.autoTurn.phase = "idle";
+      if (clearTrajectory && !activeRun?.isTest) resetTrajectory();
+      updateAutoTurnReadout();
+    }
+
+    function discSpinInertia(mass, radius) {
+      return 0.5 * mass * radius * radius;
+    }
+
+    function discTransverseInertia(mass, radius, thickness) {
+      return 0.25 * mass * radius * radius + (mass * thickness * thickness) / 12;
+    }
+
+    function computeBodyInertia() {
+      const wheelR = params.wheelRadius;
+      const flywheelThickness = getFlywheelThickness();
+      const shellMass = params.wheelMass;
+      const payloadMass = params.payloadMass;
+      const payloadR = wheelR * 0.45;
+
+      const shellIx = 0.5 * shellMass * wheelR * wheelR;
+      const shellIy = 0.5 * shellMass * wheelR * wheelR;
+      const shellIz = shellMass * wheelR * wheelR;
+      const payloadI = 0.4 * payloadMass * payloadR * payloadR;
+
+      const flyAIspin = discSpinInertia(params.flywheelMass, params.flywheelRadius);
+      const flyBIspin = discSpinInertia(params.flywheelMass, params.flywheelRadius);
+      const flyAItr = discTransverseInertia(params.flywheelMass, params.flywheelRadius, flywheelThickness);
+      const flyBItr = discTransverseInertia(params.flywheelMass, params.flywheelRadius, flywheelThickness);
+
+      return new THREE.Vector3(
+        shellIx + payloadI + flyAItr + flyBIspin,
+        shellIy + payloadI + flyAItr + flyBItr,
+        shellIz + payloadI + flyAIspin + flyBItr,
+      );
+    }
+
+    function computeTotalMass() {
+      return params.wheelMass + params.payloadMass + params.flywheelMass * 2;
+    }
+
+    function computeWheelRollInertia() {
+      const wheelR = params.wheelRadius;
+      const flywheelThickness = getFlywheelThickness();
+      const flyAItr = discTransverseInertia(params.flywheelMass, params.flywheelRadius, flywheelThickness);
+      const flyBItr = discTransverseInertia(params.flywheelMass, params.flywheelRadius, flywheelThickness);
+      const payloadI = 0.4 * params.payloadMass * (wheelR * 0.45) ** 2;
+
+      return params.wheelMass * wheelR * wheelR + payloadI + flyAItr + flyBItr;
+    }
+
+    function flywheelKinematics(prefix) {
+      const isA = prefix === "flyA";
+      const phase = isA ? 1 : -1;
+      const gimbalAngle = phase * params.gimbalDeg * DEG_TO_RAD;
+      const gimbalRate = phase * state.actualGimbalRateDeg * DEG_TO_RAD;
+      const spinDirection = isA ? 1 : -1;
+      const spin = spinDirection * params.flywheelRpm * RPM_TO_RAD;
+      const spinAccel = spinDirection * params.flywheelSpinAccel * RPM_TO_RAD;
+      const spinInertia = discSpinInertia(params.flywheelMass, params.flywheelRadius);
+
+      const baseAxis = new THREE.Vector3(0, 1, 0);
+      const gimbalAxis = new THREE.Vector3(0, 0, 1);
+      const axis = baseAxis.clone().applyAxisAngle(gimbalAxis, gimbalAngle).normalize();
+      const axisDot = gimbalAxis.clone().cross(axis).multiplyScalar(gimbalRate);
+      const H = axis.clone().multiplyScalar(spinInertia * spin);
+      const Hdot = axis.clone().multiplyScalar(spinInertia * spinAccel)
+        .add(axisDot.multiplyScalar(spinInertia * spin));
+
+      return { axis, gimbalAxis, spin, spinAccel, spinInertia, H, Hdot };
+    }
+
+    function integrate(dt) {
+      const scaledDt = Math.min(0.01, dt * params.simSpeed);
+      if (scaledDt <= 0 || state.paused) return;
+
+      state.time += scaledDt;
+      updateAutoTurnController(scaledDt);
+      state.actualGimbalRateDeg = (params.gimbalDeg - state.previousGimbalDeg) / scaledDt;
+      if (!state.autoTurn.active) {
+        params.flywheelRpm = clamp(params.flywheelRpm + params.flywheelSpinAccel * scaledDt, -20000, 20000);
+      }
+      state.spinPhaseA += params.flywheelRpm * RPM_TO_RAD * scaledDt;
+      state.spinPhaseB -= params.flywheelRpm * RPM_TO_RAD * scaledDt;
+
+      const inertia = computeBodyInertia();
+      const flyA = flywheelKinematics("flyA");
+      const flyB = flywheelKinematics("flyB");
+      const H = flyA.H.clone().add(flyB.H);
+      const Hdot = flyA.Hdot.clone().add(flyB.Hdot);
+      const Iomega = multiplyComponents(inertia, state.omega);
+      const totalAngularMomentum = Iomega.clone().add(H);
+
+      const qInv = state.q.clone().invert();
+      const gravityBody = new THREE.Vector3(0, -G, 0).applyQuaternion(qInv);
+      const totalMass = computeTotalMass();
+      const comBody = new THREE.Vector3(0, -params.comOffset, 0);
+      const gravityTorque = comBody.cross(gravityBody.multiplyScalar(totalMass));
+      const dampingTorque = new THREE.Vector3(
+        -params.damping * state.omega.x,
+        -(params.damping + params.yawDamping) * state.omega.y,
+        -params.damping * state.omega.z,
+      );
+
+      const numerator = gravityTorque
+        .add(dampingTorque)
+        .sub(Hdot)
+        .sub(state.omega.clone().cross(totalAngularMomentum));
+
+      const alpha = new THREE.Vector3(
+        numerator.x / Math.max(inertia.x, EPS),
+        numerator.y / Math.max(inertia.y, EPS),
+        numerator.z / Math.max(inertia.z, EPS),
+      );
+
+      state.omega.addScaledVector(alpha, scaledDt);
+      updateOrientation(scaledDt);
+      integrateGroundContact(scaledDt);
+      state.previousGimbalDeg = params.gimbalDeg;
+    }
+
+    function integrateGroundContact(dt) {
+      const rollInertia = Math.max(computeWheelRollInertia(), EPS);
+      const resistanceTorque = params.rollingResistance * state.wheelOmega;
+      const wheelAlpha = (params.wheelTorque - resistanceTorque) / rollInertia;
+      state.wheelOmega += wheelAlpha * dt;
+      state.wheelSpin += state.wheelOmega * dt;
+
+      applyCamberSteering(dt);
+      const forward = getRollingForward();
+      const distance = state.wheelOmega * params.wheelRadius * dt;
+      state.position.addScaledVector(forward, distance);
+      state.position.y = params.wheelRadius;
+      updateTrajectory();
+    }
+
+    function applyCamberSteering(dt) {
+      const speed = state.wheelOmega * params.wheelRadius;
+      if (Math.abs(speed) < EPS) return;
+
+      const axle = getWheelAxleWorld();
+      const camber = clamp(axle.y, -0.85, 0.85);
+      const turnRate = (speed / Math.max(params.wheelRadius, EPS)) * Math.tan(Math.asin(camber));
+      if (Math.abs(turnRate) < EPS) return;
+
+      const yawDelta = turnRate * dt;
+      const yawQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yawDelta);
+      state.q.premultiply(yawQ).normalize();
+    }
+
+    function getWheelAxleWorld() {
+      return new THREE.Vector3(0, 0, 1).applyQuaternion(state.q).normalize();
+    }
+
+    function getRollingForward() {
+      const up = new THREE.Vector3(0, 1, 0);
+      const axle = getWheelAxleWorld();
+      const axleOnGround = axle.clone().sub(up.clone().multiplyScalar(axle.dot(up)));
+      if (axleOnGround.lengthSq() < EPS) return state.lastForward.clone();
+
+      const forward = up.cross(axleOnGround.normalize()).normalize();
+      if (forward.dot(state.lastForward) < 0) forward.negate();
+      state.lastForward.copy(forward);
+      return forward;
+    }
+
+    function resetTrajectory() {
+      const run = getCurrentTrajectoryRun();
+      if (!run) return;
+      clearDistanceLabels(run);
+      run.points.length = 0;
+      run.distanceM = 0;
+      run.nextLabelDistanceM = 1;
+      const start = new THREE.Vector3(state.position.x, 0.035, state.position.z);
+      run.points.push(start);
+      state.lastTrajectoryPoint.copy(start);
+      run.geometry.setFromPoints(run.points);
+      run.geometry.computeBoundingSphere();
+    }
+
+    function updateTrajectory() {
+      const run = getCurrentTrajectoryRun();
+      if (!run) return;
+      const point = new THREE.Vector3(state.position.x, 0.035, state.position.z);
+      if (point.distanceToSquared(state.lastTrajectoryPoint) < 0.0025) return;
+
+      const segmentLength = point.distanceTo(state.lastTrajectoryPoint);
+      run.distanceM += segmentLength;
+      run.points.push(point);
+      if (run.points.length > 3000) run.points.shift();
+      addDistanceLabelsIfNeeded(run, point);
+      state.lastTrajectoryPoint.copy(point);
+      run.geometry.setFromPoints(run.points);
+      run.geometry.computeBoundingSphere();
+    }
+
+    function addDistanceLabelsIfNeeded(run, point) {
+      while (run.distanceM >= run.nextLabelDistanceM) {
+        const label = makeDistanceLabel(`${run.nextLabelDistanceM} m`, point, run.color);
+        run.labels.push(label);
+        scene.add(label);
+        run.nextLabelDistanceM += 1;
+      }
+    }
+
+    function rebuildDistanceLabels(run) {
+      clearDistanceLabels(run);
+      run.distanceM = 0;
+      run.nextLabelDistanceM = 1;
+      for (let i = 1; i < run.points.length; i += 1) {
+        run.distanceM += run.points[i].distanceTo(run.points[i - 1]);
+        addDistanceLabelsIfNeeded(run, run.points[i]);
+      }
+    }
+
+    function clearDistanceLabels(run) {
+      run.labels.forEach((label) => {
+        scene.remove(label);
+        label.material.map?.dispose();
+        label.material.dispose();
+      });
+      run.labels.length = 0;
+    }
+
+    function makeDistanceLabel(text, position, color) {
+      const canvas2d = document.createElement("canvas");
+      canvas2d.width = 128;
+      canvas2d.height = 48;
+      const ctx = canvas2d.getContext("2d");
+      const labelColor = `#${color.toString(16).padStart(6, "0")}`;
+      ctx.fillStyle = "rgba(13, 17, 23, 0.82)";
+      ctx.strokeStyle = labelColor;
+      ctx.lineWidth = 3;
+      roundRect(ctx, 4, 6, 120, 36, 10);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#e6edf3";
+      ctx.font = "700 20px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, 64, 25);
+
+      const texture = new THREE.CanvasTexture(canvas2d);
+      const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
+      const sprite = new THREE.Sprite(material);
+      sprite.position.set(position.x, 0.14, position.z);
+      sprite.scale.set(0.42, 0.16, 1);
+      sprite.renderOrder = 11;
+      return sprite;
+    }
+
+    function roundRect(ctx, x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    }
+
+    function computeRunDistance(points) {
+      let distance = 0;
+      for (let i = 1; i < points.length; i += 1) {
+        distance += points[i].distanceTo(points[i - 1]);
+      }
+      return distance;
+    }
+
+    function handleTrajectoryHover(event) {
+      const interactiveRuns = trajectoryRuns.filter((run) => run.isTest && run.points.length > 1);
+      if (interactiveRuns.length === 0) {
+        hideTrajectoryTooltip();
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+
+      const intersections = raycaster.intersectObjects(interactiveRuns.map((run) => run.line), false);
+      if (intersections.length === 0) {
+        hideTrajectoryTooltip();
+        return;
+      }
+
+      const run = intersections[0].object.userData.run;
+      if (!run) {
+        hideTrajectoryTooltip();
+        return;
+      }
+
+      const mainRect = canvas.parentElement.getBoundingClientRect();
+      trajectoryTooltip.textContent = formatRunTooltip(run);
+      trajectoryTooltip.style.display = "block";
+      trajectoryTooltip.style.left = `${event.clientX - mainRect.left + 14}px`;
+      trajectoryTooltip.style.top = `${event.clientY - mainRect.top + 14}px`;
+    }
+
+    function hideTrajectoryTooltip() {
+      trajectoryTooltip.style.display = "none";
+    }
+
+    function formatRunTooltip(run) {
+      const settings = run.settings ?? {};
+      const result = run.result;
+      return [
+        `${run.name}`,
+        `Target: ${formatNumber(settings.autoTurnTargetDeg ?? 0)} deg`,
+        `PID: Kp ${formatNumber(settings.autoTurnKp ?? 0)}, Ki ${formatNumber(settings.autoTurnKi ?? 0)}, Kd ${formatNumber(settings.autoTurnKd ?? 0)}`,
+        `Wheel: R ${formatNumber(settings.wheelRadius ?? 0)} m, mass ${formatNumber(settings.wheelMass ?? 0)} kg`,
+        `Flywheel: R ${formatNumber(settings.flywheelRadius ?? 0)} m, mass ${formatNumber(settings.flywheelMass ?? 0)} kg, rpm ${formatNumber(settings.flywheelRpm ?? 0)}`,
+        `Servo limit: ${formatNumber(settings.autoTurnMaxServoDeg ?? 0)} deg, ${formatNumber(settings.autoTurnMaxServoRateDeg ?? 0)} deg/s`,
+        `Path distance: ${formatNumber(run.distanceM)} m`,
+        result
+          ? `Result: ${formatNumber(result.finalTurnDeg)} deg, error ${formatNumber(result.finalErrorDeg)} deg, ${formatNumber(result.durationSec)} s`
+          : "Result: running/not finished",
+      ].join("\n");
+    }
+
+    function updateCameraFollow(strength = 0.12) {
+      if (!followWheel) return;
+      const desiredTarget = state.position.clone();
+      desiredTarget.y = params.wheelRadius * 0.85;
+      const delta = desiredTarget.sub(cameraFollowTarget).multiplyScalar(strength);
+      cameraFollowTarget.add(delta);
+      camera.position.add(delta);
+      orbit.target.copy(cameraFollowTarget);
+    }
+
+    function updateOrientation(dt) {
+      const speed = state.omega.length();
+      if (speed < EPS) return;
+
+      const dq = new THREE.Quaternion().setFromAxisAngle(
+        state.omega.clone().normalize(),
+        speed * dt,
+      );
+      state.q.multiply(dq).normalize();
+    }
+
+    function updateScene() {
+      const flyA = flywheelKinematics("flyA");
+      const flyB = flywheelKinematics("flyB");
+      const H = flyA.H.clone().add(flyB.H);
+
+      state.position.y = params.wheelRadius;
+      robot.position.copy(state.position);
+      robot.quaternion.copy(state.q);
+      wheelMesh.rotation.z = -state.wheelSpin;
+
+      orientFlywheel(flyAGroup, flyAMesh, flyA.axis, state.spinPhaseA);
+      orientFlywheel(flyBGroup, flyBMesh, flyB.axis, state.spinPhaseB);
+
+      setArrow(momentumArrow, H, 0.18, 0.65);
+      setArrow(axisArrowA, flyA.axis, 0.15, 0.28);
+      setArrow(axisArrowB, flyB.axis, 0.15, 0.28);
+      axisArrowA.position.copy(flyAGroup.position);
+      axisArrowB.position.copy(flyBGroup.position);
+      momentumArrow.position.set(0, 0, 0);
+
+      updateReadout(H);
+      syncDynamicInputs();
+    }
+
+    function getYaw() {
+      const euler = new THREE.Euler().setFromQuaternion(state.q, "YXZ");
+      return euler.y;
+    }
+
+    function getGroundHeading() {
+      return Math.atan2(-state.lastForward.z, state.lastForward.x);
+    }
+
+    function orientFlywheel(group, mesh, axis, spinPhase) {
+      group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), axis.clone().normalize());
+      mesh.rotation.y = spinPhase;
+    }
+
+    function setArrow(arrow, vector, minLen, scale) {
+      const length = Math.max(minLen, Math.min(0.75, vector.length() * scale));
+      const dir = vector.lengthSq() > EPS ? vector.clone().normalize() : new THREE.Vector3(0, 1, 0);
+      arrow.setDirection(dir);
+      arrow.setLength(length, 0.045, 0.025);
+    }
+
+    function updateReadout(H) {
+      const euler = new THREE.Euler().setFromQuaternion(state.q, "YXZ");
+      const readout = document.getElementById("readout");
+      readout.innerHTML = `
+        <div class="readout-row"><span>Time</span><span class="value">${formatNumber(state.time)} s</span></div>
+        <div class="readout-row"><span>Roll X</span><span class="value">${formatNumber(euler.x * RAD_TO_DEG)} deg</span></div>
+        <div class="readout-row"><span>Yaw Y</span><span class="value">${formatNumber(euler.y * RAD_TO_DEG)} deg</span></div>
+        <div class="readout-row"><span>Pitch Z</span><span class="value">${formatNumber(euler.z * RAD_TO_DEG)} deg</span></div>
+        <div class="readout-row"><span>Ground heading</span><span class="value">${formatNumber(getGroundHeading() * RAD_TO_DEG)} deg</span></div>
+        <div class="readout-row"><span>Servo angle</span><span class="value">${formatNumber(params.gimbalDeg)} deg</span></div>
+        <div class="readout-row"><span>Servo rate</span><span class="value">${formatNumber(state.actualGimbalRateDeg)} deg/s</span></div>
+        <div class="readout-row"><span>Wheel speed</span><span class="value">${formatNumber(state.wheelOmega)} rad/s</span></div>
+        <div class="readout-row"><span>Ground speed</span><span class="value">${formatNumber(state.wheelOmega * params.wheelRadius)} m/s</span></div>
+        <div class="readout-row"><span>Angular speed</span><span class="value">${formatNumber(state.omega.length())} rad/s</span></div>
+        <div class="readout-row"><span>Flywheel momentum</span><span class="value">${formatNumber(H.length())} N m s</span></div>
+        <div class="readout-row"><span>Ground position</span><span class="value">X ${formatNumber(state.position.x)} / Z ${formatNumber(state.position.z)} m</span></div>
+      `;
+    }
+
+    function syncDynamicInputs() {
+      document.querySelectorAll("input[type='range']").forEach((input) => {
+        const key = input.dataset.key;
+        if (key && Number(input.value) !== params[key]) {
+          input.value = params[key];
+          const value = input.closest(".control")?.querySelector(".value");
+          if (value) value.textContent = `${formatNumber(params[key])} ${input.dataset.unit}`;
+        }
+      });
+    }
+
+    function multiplyComponents(a, b) {
+      return new THREE.Vector3(a.x * b.x, a.y * b.y, a.z * b.z);
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function approachValue(value, target, maxDelta) {
+      if (Math.abs(target - value) <= maxDelta) return target;
+      return value + Math.sign(target - value) * maxDelta;
+    }
+
+    function normalizeAngleDeg(value) {
+      return ((value + 180) % 360 + 360) % 360 - 180;
+    }
+
+    function round(value, digits) {
+      const scale = 10 ** digits;
+      return Math.round(value * scale) / scale;
+    }
+
+    function capitalize(value) {
+      return value.charAt(0).toUpperCase() + value.slice(1);
+    }
+
+    function formatNumber(value) {
+      const abs = Math.abs(value);
+      const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+      return Number(value).toFixed(digits);
+    }
+
+    function resize() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      renderer.setSize(rect.width, rect.height, false);
+      camera.aspect = rect.width / Math.max(rect.height, 1);
+      camera.updateProjectionMatrix();
+    }
+
+    let lastTime = performance.now();
+    function animate(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+      integrate(dt);
+      updateScene();
+      updateCameraFollow();
+      orbit.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    buildControls();
+    renderTestTabs();
+    rebuildGeometry();
+    resetState();
+    resize();
+    window.addEventListener("resize", resize);
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
