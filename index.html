@@ -392,6 +392,7 @@
       yawDamping: 0.2,
       flywheelMass: 0.8,
       flywheelRadius: 0.07,
+      flywheelMountHeight: 0,
       flywheelRpm: 7000,
       flywheelSpinAccel: 0,
       gimbalDeg: 0,
@@ -425,6 +426,7 @@
     const flywheelSpec = [
       ["mass", "Mass", "kg", 0.05, 5, 0.05],
       ["radius", "Radius", "m", 0.02, 0.18, 0.005],
+      ["mountHeight", "Mount height above axle", "m", -0.2, 0.2, 0.005],
       ["rpm", "Spin speed", "rpm", -20000, 20000, 100],
       ["spinAccel", "Spin acceleration", "rpm/s", -10000, 10000, 100],
     ];
@@ -622,6 +624,7 @@
       const wheelR = params.wheelRadius;
       const width = params.shellWidth;
       const flywheelThickness = getFlywheelThickness();
+      const flywheelMountHeight = params.flywheelMountHeight;
       const halfWidth = Math.min(wheelR * 0.92, Math.max(width * 0.5, wheelR * 0.08));
       const cutRingRadius = Math.sqrt(Math.max(wheelR * wheelR - halfWidth * halfWidth, EPS));
       wheelMesh = new THREE.Group();
@@ -656,12 +659,13 @@
       robot.add(axleMesh);
 
       gimbalShaftMesh = makeCylinderAlongX(wheelR * 0.03, wheelR * 0.7, materials.axle);
+      gimbalShaftMesh.position.y = flywheelMountHeight;
       robot.add(gimbalShaftMesh);
 
       flyAGroup = new THREE.Group();
       flyBGroup = new THREE.Group();
-      flyAGroup.position.set(wheelR * 0.26, 0, 0);
-      flyBGroup.position.set(-wheelR * 0.26, 0, 0);
+      flyAGroup.position.set(wheelR * 0.26, flywheelMountHeight, 0);
+      flyBGroup.position.set(-wheelR * 0.26, flywheelMountHeight, 0);
 
       flyAMesh = new THREE.Mesh(
         new THREE.CylinderGeometry(params.flywheelRadius, params.flywheelRadius, flywheelThickness, 64),
@@ -724,7 +728,8 @@
       driveSpec.forEach((spec) => addRange(driveControls, ...spec));
       gimbalSpec.forEach((spec) => addRange(gimbalControls, ...spec));
       flywheelSpec.forEach(([suffix, ...spec]) => {
-        addRange(flywheelControls, `flywheel${capitalize(suffix)}`, ...spec, suffix === "radius" ? rebuildGeometry : undefined);
+        const shouldRebuildGeometry = suffix === "radius" || suffix === "mountHeight";
+        addRange(flywheelControls, `flywheel${capitalize(suffix)}`, ...spec, shouldRebuildGeometry ? rebuildGeometry : undefined);
       });
       autoTurnSpec.forEach((spec) => addRange(autoTurnControls, ...spec));
 
@@ -1336,6 +1341,11 @@
       return params.wheelMass + params.payloadMass + params.flywheelMass * 2;
     }
 
+    function computeEffectiveComY() {
+      const totalMass = Math.max(computeTotalMass(), EPS);
+      return -params.comOffset + (params.flywheelMass * 2 * params.flywheelMountHeight) / totalMass;
+    }
+
     function computeWheelRollInertia() {
       const wheelR = params.wheelRadius;
       const flywheelThickness = getFlywheelThickness();
@@ -1391,7 +1401,7 @@
       const qInv = state.q.clone().invert();
       const gravityBody = new THREE.Vector3(0, -G, 0).applyQuaternion(qInv);
       const totalMass = computeTotalMass();
-      const comBody = new THREE.Vector3(0, -params.comOffset, 0);
+      const comBody = new THREE.Vector3(0, computeEffectiveComY(), 0);
       const gravityTorque = comBody.cross(gravityBody.multiplyScalar(totalMass));
       const dampingTorque = new THREE.Vector3(
         -params.damping * state.omega.x,
