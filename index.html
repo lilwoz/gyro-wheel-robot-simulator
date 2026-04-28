@@ -360,6 +360,11 @@
     </main>
   </div>
 
+  <script src="./src/config.js"></script>
+  <script src="./src/utils.js"></script>
+  <script src="./src/robot-geometry.js"></script>
+  <script src="./src/distance-labels.js"></script>
+
   <script type="importmap">
     {
       "imports": {
@@ -373,79 +378,33 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-    const G = 9.80665;
-    const EPS = 1e-9;
-    const RPM_TO_RAD = Math.PI * 2 / 60;
-    const DEG_TO_RAD = Math.PI / 180;
-    const RAD_TO_DEG = 180 / Math.PI;
+    const {
+      G,
+      EPS,
+      RPM_TO_RAD,
+      DEG_TO_RAD,
+      RAD_TO_DEG,
+      defaultParams,
+      controlsSpec,
+      driveSpec,
+      flywheelSpec,
+      gimbalSpec,
+      autoTurnSpec,
+      TEST_COLORS,
+    } = window.RobotConfig;
+    const {
+      approachValue,
+      capitalize,
+      clamp,
+      formatNumber,
+      multiplyComponents,
+      normalizeAngleDeg,
+      round,
+    } = window.RobotUtils;
+    const { buildRobotGeometry, getFlywheelThickness } = window.RobotGeometry;
+    const { makeDistanceLabel } = window.DistanceLabels;
 
-    const params = {
-      wheelMass: 5.0,
-      wheelRadius: 0.32,
-      shellWidth: 0.32,
-      payloadMass: 3.0,
-      comOffset: 0.035,
-      damping: 0.18,
-      simSpeed: 1.0,
-      wheelTorque: 0,
-      rollingResistance: 0.08,
-      yawDamping: 0.2,
-      flywheelMass: 0.8,
-      flywheelRadius: 0.07,
-      flywheelMountHeight: 0,
-      flywheelRpm: 7000,
-      flywheelSpinAccel: 0,
-      gimbalDeg: 0,
-      autoTurnTargetDeg: 90,
-      autoTurnKp: 0.55,
-      autoTurnKi: 0.02,
-      autoTurnKd: 0.12,
-      autoTurnMaxServoDeg: 35,
-      autoTurnMaxServoRateDeg: 120,
-      autoTurnDriveTorque: 1.8,
-      autoTurnToleranceDeg: 2,
-      autoTurnFlywheelRampRpmPerSec: 6000,
-    };
-
-    const controlsSpec = [
-      ["wheelMass", "Wheel mass", "kg", 0.5, 20, 0.1],
-      ["wheelRadius", "Wheel radius", "m", 0.12, 0.8, 0.01],
-      ["shellWidth", "Side cut width", "m", 0.08, 0.7, 0.005],
-      ["payloadMass", "Internal payload mass", "kg", 0.2, 20, 0.1],
-      ["comOffset", "Center of mass below axle", "m", -0.12, 0.12, 0.005],
-      ["damping", "Body damping", "N m s/rad", 0, 2, 0.01],
-      ["simSpeed", "Simulation speed", "x", 0.1, 4, 0.1],
-    ];
-
-    const driveSpec = [
-      ["wheelTorque", "Wheel motor torque", "N m", -8, 8, 0.1],
-      ["rollingResistance", "Rolling resistance", "N m s/rad", 0, 2, 0.01],
-      ["yawDamping", "Ground yaw damping", "N m s/rad", 0, 2, 0.01],
-    ];
-
-    const flywheelSpec = [
-      ["mass", "Mass", "kg", 0.05, 5, 0.05],
-      ["radius", "Radius", "m", 0.02, 0.18, 0.005],
-      ["mountHeight", "Mount height above axle", "m", -0.2, 0.2, 0.005],
-      ["rpm", "Spin speed", "rpm", -20000, 20000, 100],
-      ["spinAccel", "Spin acceleration", "rpm/s", -10000, 10000, 100],
-    ];
-
-    const gimbalSpec = [
-      ["gimbalDeg", "Servo angle", "deg", -90, 90, 1],
-    ];
-
-    const autoTurnSpec = [
-      ["autoTurnTargetDeg", "Target turn", "deg", -180, 180, 1],
-      ["autoTurnKp", "PID Kp", "", 0, 5, 0.01],
-      ["autoTurnKi", "PID Ki", "", 0, 2, 0.01],
-      ["autoTurnKd", "PID Kd", "", 0, 2, 0.01],
-      ["autoTurnMaxServoDeg", "Max servo angle", "deg", 1, 90, 1],
-      ["autoTurnMaxServoRateDeg", "Max servo rate", "deg/s", 5, 360, 1],
-      ["autoTurnDriveTorque", "Test drive torque", "N m", 0, 8, 0.1],
-      ["autoTurnToleranceDeg", "Finish tolerance", "deg", 0.5, 10, 0.5],
-      ["autoTurnFlywheelRampRpmPerSec", "Flywheel stop/start rate", "rpm/s", 500, 30000, 100],
-    ];
+    const params = { ...defaultParams };
 
     const state = {
       time: 0,
@@ -518,7 +477,6 @@
     grid.position.y = 0.002;
     scene.add(grid);
 
-    const TEST_COLORS = [0x58a6ff, 0x7ee787, 0xffa657, 0xd2a8ff, 0xff7b72, 0x79c0ff, 0xf2cc60];
     const trajectoryRuns = [];
     let testCounter = 0;
     let activeRun = createTrajectoryRun({
@@ -561,129 +519,21 @@
     let axisArrowA;
     let axisArrowB;
 
-    function makeCylinderAlongZ(radius, depth, material) {
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, depth, 48), material);
-      mesh.rotation.x = Math.PI / 2;
-      return mesh;
-    }
-
-    function makeCylinderAlongX(radius, depth, material) {
-      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, depth, 48), material);
-      mesh.rotation.z = Math.PI / 2;
-      return mesh;
-    }
-
-    function getFlywheelThickness() {
-      return Math.max(0.025, params.flywheelRadius * 0.65);
-    }
-
-    function makeSlicedSphereGeometry(radius, width, radialSegments = 96, depthSegments = 18) {
-      const halfWidth = Math.min(radius * 0.92, Math.max(width * 0.5, radius * 0.08));
-      const vertices = [];
-      const normals = [];
-      const uvs = [];
-      const indices = [];
-
-      for (let iz = 0; iz <= depthSegments; iz += 1) {
-        const z = -halfWidth + (2 * halfWidth * iz) / depthSegments;
-        const ringRadius = Math.sqrt(Math.max(radius * radius - z * z, EPS));
-
-        for (let i = 0; i <= radialSegments; i += 1) {
-          const a = (i / radialSegments) * Math.PI * 2;
-          const x = Math.cos(a) * ringRadius;
-          const y = Math.sin(a) * ringRadius;
-          vertices.push(x, y, z);
-          normals.push(x / radius, y / radius, z / radius);
-          uvs.push(i / radialSegments, iz / depthSegments);
-        }
-      }
-
-      for (let iz = 0; iz < depthSegments; iz += 1) {
-        for (let i = 0; i < radialSegments; i += 1) {
-          const row = radialSegments + 1;
-          const a = iz * row + i;
-          const b = a + 1;
-          const c = a + row;
-          const d = c + 1;
-          indices.push(a, c, b, b, c, d);
-        }
-      }
-
-      const geometry = new THREE.BufferGeometry();
-      geometry.setIndex(indices);
-      geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
-      geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
-      geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
-      geometry.computeBoundingSphere();
-      return geometry;
-    }
-
     function rebuildGeometry() {
-      robot.clear();
-
-      const wheelR = params.wheelRadius;
-      const width = params.shellWidth;
-      const flywheelThickness = getFlywheelThickness();
-      const flywheelMountHeight = params.flywheelMountHeight;
-      const halfWidth = Math.min(wheelR * 0.92, Math.max(width * 0.5, wheelR * 0.08));
-      const cutRingRadius = Math.sqrt(Math.max(wheelR * wheelR - halfWidth * halfWidth, EPS));
-      wheelMesh = new THREE.Group();
-      const wheelShell = new THREE.Mesh(
-        makeSlicedSphereGeometry(wheelR, width),
-        materials.wheel,
-      );
-      const leftCutRing = new THREE.Mesh(
-        new THREE.TorusGeometry(cutRingRadius, wheelR * 0.012, 10, 96),
-        materials.axle,
-      );
-      const rightCutRing = leftCutRing.clone();
-      leftCutRing.position.z = -halfWidth;
-      rightCutRing.position.z = halfWidth;
-      wheelMesh.add(wheelShell, leftCutRing, rightCutRing);
-      wheelMarkerMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(wheelR * 0.035, 16, 8),
-        materials.flyA,
-      );
-      wheelMarkerMesh.position.set(wheelR, 0, 0);
-      wheelMesh.add(wheelMarkerMesh);
-      robot.add(wheelMesh);
-
-      shellMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(wheelR * 0.82, 32, 16),
-        materials.shell,
-      );
-      shellMesh.scale.z = 0.42;
-      robot.add(shellMesh);
-
-      axleMesh = makeCylinderAlongZ(wheelR * 0.045, wheelR * 0.85, materials.axle);
-      robot.add(axleMesh);
-
-      gimbalShaftMesh = makeCylinderAlongX(wheelR * 0.03, wheelR * 0.7, materials.axle);
-      gimbalShaftMesh.position.y = flywheelMountHeight;
-      robot.add(gimbalShaftMesh);
-
-      flyAGroup = new THREE.Group();
-      flyBGroup = new THREE.Group();
-      flyAGroup.position.set(wheelR * 0.26, flywheelMountHeight, 0);
-      flyBGroup.position.set(-wheelR * 0.26, flywheelMountHeight, 0);
-
-      flyAMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(params.flywheelRadius, params.flywheelRadius, flywheelThickness, 64),
-        materials.flyA,
-      );
-      flyBMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(params.flywheelRadius, params.flywheelRadius, flywheelThickness, 64),
-        materials.flyB,
-      );
-
-      flyAGroup.add(flyAMesh);
-      flyBGroup.add(flyBMesh);
-      robot.add(flyAGroup, flyBGroup);
-
-      momentumArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.25, 0x58a6ff);
-      axisArrowA = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.2, 0x7ee787);
-      axisArrowB = new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.2, 0xffa657);
-      robot.add(momentumArrow, axisArrowA, axisArrowB);
+      ({
+        wheelMesh,
+        wheelMarkerMesh,
+        shellMesh,
+        axleMesh,
+        gimbalShaftMesh,
+        flyAGroup,
+        flyBGroup,
+        flyAMesh,
+        flyBMesh,
+        momentumArrow,
+        axisArrowA,
+        axisArrowB,
+      } = buildRobotGeometry({ THREE, EPS, robot, params, materials }));
     }
 
     function addRange(container, key, label, unit, min, max, step, onInput) {
@@ -1315,7 +1165,7 @@
 
     function computeBodyInertia() {
       const wheelR = params.wheelRadius;
-      const flywheelThickness = getFlywheelThickness();
+      const flywheelThickness = getFlywheelThickness(params);
       const shellMass = params.wheelMass;
       const payloadMass = params.payloadMass;
       const payloadR = wheelR * 0.45;
@@ -1348,7 +1198,7 @@
 
     function computeWheelRollInertia() {
       const wheelR = params.wheelRadius;
-      const flywheelThickness = getFlywheelThickness();
+      const flywheelThickness = getFlywheelThickness(params);
       const flyAItr = discTransverseInertia(params.flywheelMass, params.flywheelRadius, flywheelThickness);
       const flyBItr = discTransverseInertia(params.flywheelMass, params.flywheelRadius, flywheelThickness);
       const payloadI = 0.4 * params.payloadMass * (wheelR * 0.45) ** 2;
@@ -1503,7 +1353,7 @@
 
     function addDistanceLabelsIfNeeded(run, point) {
       while (run.distanceM >= run.nextLabelDistanceM) {
-        const label = makeDistanceLabel(`${run.nextLabelDistanceM} m`, point, run.color);
+        const label = makeDistanceLabel(THREE, `${run.nextLabelDistanceM} m`, point, run.color, distanceLabelsVisible);
         run.labels.push(label);
         scene.add(label);
         run.nextLabelDistanceM += 1;
@@ -1527,48 +1377,6 @@
         label.material.dispose();
       });
       run.labels.length = 0;
-    }
-
-    function makeDistanceLabel(text, position, color) {
-      const canvas2d = document.createElement("canvas");
-      canvas2d.width = 128;
-      canvas2d.height = 48;
-      const ctx = canvas2d.getContext("2d");
-      const labelColor = `#${color.toString(16).padStart(6, "0")}`;
-      ctx.fillStyle = "rgba(13, 17, 23, 0.82)";
-      ctx.strokeStyle = labelColor;
-      ctx.lineWidth = 3;
-      roundRect(ctx, 4, 6, 120, 36, 10);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#e6edf3";
-      ctx.font = "700 20px system-ui, sans-serif";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(text, 64, 25);
-
-      const texture = new THREE.CanvasTexture(canvas2d);
-      const material = new THREE.SpriteMaterial({ map: texture, depthTest: false, depthWrite: false });
-      const sprite = new THREE.Sprite(material);
-      sprite.position.set(position.x, 0.14, position.z);
-      sprite.scale.set(0.42, 0.16, 1);
-      sprite.renderOrder = 11;
-      sprite.visible = distanceLabelsVisible;
-      return sprite;
-    }
-
-    function roundRect(ctx, x, y, width, height, radius) {
-      ctx.beginPath();
-      ctx.moveTo(x + radius, y);
-      ctx.lineTo(x + width - radius, y);
-      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
-      ctx.lineTo(x + width, y + height - radius);
-      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
-      ctx.lineTo(x + radius, y + height);
-      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
-      ctx.lineTo(x, y + radius);
-      ctx.quadraticCurveTo(x, y, x + radius, y);
-      ctx.closePath();
     }
 
     function computeRunDistance(points) {
@@ -1725,38 +1533,6 @@
           if (value) value.textContent = `${formatNumber(params[key])} ${input.dataset.unit}`;
         }
       });
-    }
-
-    function multiplyComponents(a, b) {
-      return new THREE.Vector3(a.x * b.x, a.y * b.y, a.z * b.z);
-    }
-
-    function clamp(value, min, max) {
-      return Math.min(max, Math.max(min, value));
-    }
-
-    function approachValue(value, target, maxDelta) {
-      if (Math.abs(target - value) <= maxDelta) return target;
-      return value + Math.sign(target - value) * maxDelta;
-    }
-
-    function normalizeAngleDeg(value) {
-      return ((value + 180) % 360 + 360) % 360 - 180;
-    }
-
-    function round(value, digits) {
-      const scale = 10 ** digits;
-      return Math.round(value * scale) / scale;
-    }
-
-    function capitalize(value) {
-      return value.charAt(0).toUpperCase() + value.slice(1);
-    }
-
-    function formatNumber(value) {
-      const abs = Math.abs(value);
-      const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
-      return Number(value).toFixed(digits);
     }
 
     function resize() {
