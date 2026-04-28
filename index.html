@@ -209,12 +209,19 @@
     }
 
     .scene-toolbar {
-      position: absolute;
+      position: fixed;
       top: 16px;
-      left: 16px;
+      right: 16px;
       display: flex;
+      flex-direction: column;
+      align-items: flex-start;
       gap: 8px;
-      z-index: 2;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(13, 17, 23, 0.86);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
     }
 
     .scene-toolbar button.active {
@@ -222,7 +229,61 @@
       background: rgba(88, 166, 255, 0.2);
     }
 
+    .scene-toolbar-actions {
+      position: relative;
+      display: flex;
+      gap: 8px;
+    }
+
+    .scene-icon-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .scene-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      display: none;
+      min-width: 190px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(13, 17, 23, 0.96);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
+    }
+
+    .scene-menu.open {
+      display: grid;
+      gap: 6px;
+    }
+
+    .scene-menu button {
+      width: 100%;
+      text-align: left;
+    }
+
+    .scene-toolbar-toggles {
+      display: grid;
+      gap: 8px;
+    }
+
+    .scene-toolbar-toggles button {
+      width: 100%;
+    }
+
     @media (max-width: 900px) {
+      .scene-toolbar {
+        top: 8px;
+        right: 8px;
+      }
+
       #app {
         grid-template-columns: 1fr;
         grid-template-rows: minmax(320px, 48vh) 1fr;
@@ -245,14 +306,6 @@
 
       <div class="readout" id="readout"></div>
 
-      <div class="buttons">
-        <button id="pauseButton">Pause</button>
-        <button id="resetButton">Reset</button>
-        <button id="exportSettingsButton">Export settings</button>
-        <button id="importSettingsButton">Import settings</button>
-        <button id="exportSessionButton">Export session</button>
-        <button id="importSessionButton">Import session</button>
-      </div>
       <input id="importSettingsInput" type="file" accept="application/json,.json" hidden />
       <input id="importSessionInput" type="file" accept="application/json,.json" hidden />
 
@@ -282,7 +335,21 @@
     <main>
       <canvas id="view"></canvas>
       <div class="scene-toolbar">
-        <button id="followWheelButton" type="button">Follow wheel</button>
+        <div class="scene-toolbar-actions">
+          <button id="pauseButton" class="scene-icon-button" type="button" title="Pause" aria-label="Pause">⏸</button>
+          <button id="resetButton" class="scene-icon-button" type="button" title="Reset" aria-label="Reset">⟳</button>
+          <button id="sceneMenuButton" class="scene-icon-button" type="button" title="Import and export" aria-label="Import and export menu" aria-expanded="false">☰</button>
+          <div id="sceneMenu" class="scene-menu">
+            <button id="exportSettingsButton" type="button">Export settings</button>
+            <button id="importSettingsButton" type="button">Import settings</button>
+            <button id="exportSessionButton" type="button">Export session</button>
+            <button id="importSessionButton" type="button">Import session</button>
+          </div>
+        </div>
+        <div class="scene-toolbar-toggles">
+          <button id="followWheelButton" type="button">Follow wheel</button>
+          <button id="distanceLabelsButton" class="active" type="button">Hide distance labels</button>
+        </div>
       </div>
       <div class="tooltip" id="trajectoryTooltip"></div>
       <div class="legend">
@@ -423,6 +490,7 @@
     orbit.enableDamping = true;
     const cameraFollowTarget = orbit.target.clone();
     let followWheel = false;
+    let distanceLabelsVisible = true;
 
     scene.add(new THREE.HemisphereLight(0xddeeff, 0x263040, 2.2));
     const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -662,10 +730,15 @@
 
       document.getElementById("pauseButton").addEventListener("click", () => {
         state.paused = !state.paused;
-        document.getElementById("pauseButton").textContent = state.paused ? "Resume" : "Pause";
+        updatePauseButton();
       });
 
       document.getElementById("resetButton").addEventListener("click", resetState);
+      document.getElementById("sceneMenuButton").addEventListener("click", toggleSceneMenu);
+      document.addEventListener("click", closeSceneMenuOnOutsideClick);
+      document.getElementById("sceneMenu").addEventListener("click", (event) => {
+        if (event.target.tagName === "BUTTON") closeSceneMenu();
+      });
       document.getElementById("exportSettingsButton").addEventListener("click", exportSettings);
       document.getElementById("importSettingsButton").addEventListener("click", () => {
         document.getElementById("importSettingsInput").click();
@@ -680,6 +753,40 @@
       document.getElementById("stopAutoTurnButton").addEventListener("click", stopAutoTurnTest);
       document.getElementById("exportTurnReportButton").addEventListener("click", exportTurnReport);
       document.getElementById("followWheelButton").addEventListener("click", toggleFollowWheel);
+      document.getElementById("distanceLabelsButton").addEventListener("click", toggleDistanceLabels);
+      updatePauseButton();
+    }
+
+    function updatePauseButton() {
+      const button = document.getElementById("pauseButton");
+      button.textContent = state.paused ? "▶" : "⏸";
+      button.title = state.paused ? "Resume" : "Pause";
+      button.setAttribute("aria-label", state.paused ? "Resume" : "Pause");
+    }
+
+    function toggleSceneMenu(event) {
+      event.stopPropagation();
+      const menu = document.getElementById("sceneMenu");
+      const button = document.getElementById("sceneMenuButton");
+      const isOpen = !menu.classList.contains("open");
+      menu.classList.toggle("open", isOpen);
+      button.classList.toggle("active", isOpen);
+      button.setAttribute("aria-expanded", String(isOpen));
+    }
+
+    function closeSceneMenu() {
+      const menu = document.getElementById("sceneMenu");
+      const button = document.getElementById("sceneMenuButton");
+      menu.classList.remove("open");
+      button.classList.remove("active");
+      button.setAttribute("aria-expanded", "false");
+    }
+
+    function closeSceneMenuOnOutsideClick(event) {
+      const toolbar = document.querySelector(".scene-toolbar");
+      if (!toolbar.contains(event.target)) {
+        closeSceneMenu();
+      }
     }
 
     function toggleFollowWheel() {
@@ -692,6 +799,22 @@
         cameraFollowTarget.copy(orbit.target);
         updateCameraFollow(1);
       }
+    }
+
+    function toggleDistanceLabels() {
+      distanceLabelsVisible = !distanceLabelsVisible;
+      const button = document.getElementById("distanceLabelsButton");
+      button.classList.toggle("active", distanceLabelsVisible);
+      button.textContent = distanceLabelsVisible ? "Hide distance labels" : "Show distance labels";
+      updateDistanceLabelsVisibility();
+    }
+
+    function updateDistanceLabelsVisibility() {
+      trajectoryRuns.forEach((run) => {
+        run.labels.forEach((label) => {
+          label.visible = distanceLabelsVisible;
+        });
+      });
     }
 
     function exportSettings() {
@@ -1420,6 +1543,7 @@
       sprite.position.set(position.x, 0.14, position.z);
       sprite.scale.set(0.42, 0.16, 1);
       sprite.renderOrder = 11;
+      sprite.visible = distanceLabelsVisible;
       return sprite;
     }
 
